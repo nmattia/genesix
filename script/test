@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+for testdir in tests/*; do
+    test=$(basename $testdir)
+    echo -n "Building $test... "
+    out=$(nix-build -A $test --no-out-link)
+    echo "Done, '$test' created in '$out'."
+    golden="tests/$test/golden"
+    echo -n "Testing '$out' vs '$golden'... "
+    diff -r $out "tests/$test/golden"
+    echo "Done."
+done
