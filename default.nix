@@ -2,7 +2,9 @@ let
   pkgs = import <nixpkgs>
     { overlays =
         [ (self: super:
-            { genesix = import ./genesix { pkgs = self; }; }
+            {
+              genesix = import ./genesix { pkgs = self; };
+            }
           )
         ];
     };
