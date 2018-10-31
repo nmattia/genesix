@@ -1,0 +1,162 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash nix curl jq --pure
+# vim: filetype=sh
+set -euo pipefail
+
+banner() {
+    echo
+    echo "--- $*"
+    echo
+}
+
+help() {
+
+cat << EOF
+This script updates one or more dependencies.
+Usage:
+    ./script/update [--prefetch] PACKAGE1 PACKAGE1 ...
+
+All the packages are described in ./nix/versions.json. The packages to update
+are referenced by the JSON keys.
+
+Examples:
+
+    1. Updating a single package by fetching the latest commit of the specified
+    branch attribute specified in versions.json and computing its sha256:
+
+        ./scripts/update nixpkgs
+
+    2. Updating all packages, by fetching the latest commit of their specified
+    branch attribute specified in versions.json and computing their sha256:
+
+        ./scripts/update
+
+    3. Updating the sha256 of a package at the commit specified in
+    versions.json:
+
+        ./scripts/update nixpkgs --prefetch
+
+    4. Adding a package
+        # first add an entry in versions.json specifying the repo, owner and
+        # commit. Then run:
+        ./scripts/update my-new-package --prefetch
+
+        # In order for your package to be updatable automatically through
+        # ./scripts/update, also add a branch field.
+
+The versions.json scheme works hand in hand with ./nix/fetch.nix. In order to
+access a package from Nix code, import fetch.nix and give it a package name:
+
+    with { fetch = import ./fetch.nix; };
+    { nixpkgs-src = fetch "nixpkgs"; }
+
+EOF
+}
+
+
+update() {
+    local versions="$1"
+    local package="$2"
+    echo "Versions file: $versions"
+    echo "Package to update: $package"
+    local owner=$(cat $versions | jq -r ".[\"$package\"].owner")
+    local repo=$(cat $versions | jq -r ".[\"$package\"].repo")
+    local branch=$(cat $versions | jq -r ".[\"$package\"].branch")
+    local rev=$(cat $versions | jq -r ".[\"$package\"].rev")
+    local sha256=$(cat $versions | jq -r ".[\"$package\"].sha256")
+
+    echo "Owner: $owner"
+    echo "Repository: $repo"
+    echo "Branch: $branch"
+
+
+    case "$PREFETCH_ONLY" in
+        TRUE)
+        local new_rev=$rev
+        echo "Using existing revision"
+        ;;
+        FALSE)
+        echo "Fetching latest revision on branch $branch"
+        local new_rev=$(curl -sfL \
+            https://api.github.com/repos/$owner/$repo/git/refs/heads/$branch \
+            | jq -r .object.sha)
+        ;;
+    esac
+    echo "The following revision will be used:"
+    echo "  $new_rev"
+
+    local url=https://github.com/$owner/$repo/archive/$new_rev.tar.gz
+    local new_sha256=$(nix-prefetch-url --unpack "$url")
+
+    echo "The following url will be used:"
+    echo "  $url"
+
+    echo "The following sha256 will be used:"
+    echo "  $new_sha256"
+
+    res=$(cat $versions \
+        | jq -rM ".[\"$package\"].rev = \"$new_rev\"" \
+        | jq -rM ".[\"$package\"].sha256 = \"$new_sha256\""
+        )
+
+    echo "New versions file:"
+    echo "$res"
+
+    echo "$res" > $versions
+}
+
+ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null && pwd )"
+VERSIONS_DEF="$ROOT/nix/versions.json"
+PACKAGES_DEF="$(cat $VERSIONS_DEF | jq -r 'keys | .[]')"
+
+VERSIONS="$VERSIONS_DEF"
+
+PREFETCH_ONLY="FALSE"
+PACKAGES=""
+
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    --prefetch)
+    PREFETCH_ONLY="TRUE"
+    shift
+    ;;
+    --help)
+    help
+    exit 0
+    ;;
+    --*)
+    echo "Bad argument: $key"
+    help
+    exit 1
+    ;;
+    *)
+    PACKAGES="$key $PACKAGES"
+    shift # past value
+    ;;
+esac
+done
+
+if [ -z "$PACKAGES" ];
+then
+    PACKAGES="$PACKAGES_DEF"
+fi
+
+if [ ! -f ${VERSIONS} ];
+then
+    echo "Could not find a versions file at ${VERSIONS}"
+else
+    echo "Using versions file ${VERSIONS}"
+fi
+
+
+echo "Using packages:"
+for p in $PACKAGES; do echo " - $p"; done
+
+for p in $PACKAGES; do
+    banner "$p"
+    update "$VERSIONS" "$p"
+done
