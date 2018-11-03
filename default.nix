@@ -12,4 +12,5 @@ in
   pkgs.lib.attrsets.mapAttrs
     (name: value:
       pkgs.callPackage (import (./tests + "/${name}")) {} )
-    (builtins.readDir ./tests)
+    (builtins.readDir ./tests) //
+  { site = pkgs.callPackage ./site {}; }

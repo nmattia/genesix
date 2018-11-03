@@ -1,0 +1,35 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash
+#!nix-shell -I nixpkgs=./nix
+#!nix-shell -p nix
+#!nix-shell -p fswatch
+#!nix-shell -p git
+#!nix-shell -p rsync
+#!nix-shell -p haskellPackages.wai-app-static
+#
+#!nix-shell --pure
+# vim: ft=sh sw=2 et
+
+set -euo pipefail
+
+echo "all good"
+
+TMP_DIR=$(mktemp -d)
+
+mkdir -p $TMP_DIR
+
+echo "Using TMP directory $TMP_DIR"
+
+warp -d $TMP_DIR &
+warp_pid=$!
+echo "Using PID for warp: $warp_pid"
+trap "kill $warp_pid" EXIT
+
+fswatch --event=Updated $(find . -type f -not -path "./.git/*") 2> /dev/null \
+    |   while read file; do
+            (while read -r -t 0; do read -r; done)
+            git check-ignore -q $file || \
+                (nix-build -A site | \
+                    (read src && rsync -av --delete "$src"/ "$TMP_DIR"/)) || \
+                echo "build failed"
+        done

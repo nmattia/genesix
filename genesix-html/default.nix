@@ -1,8 +1,12 @@
-{ pkgs, genesix-lib }:
+{ pkgs, genesix-lib, genesix-nix }:
 {
   generator =
+
+    let
+      html = null;
+    in
     { accept = file:
-        pkgs.lib.strings.hasSuffix ".nix" (builtins.toString file);
+        pkgs.lib.strings.hasSuffix ".html.nix" (builtins.toString file);
       gen = {pathOf}: file:
         let
           imported = import file;
@@ -14,7 +18,8 @@
             (ifArg "pkgs" pkgs) //
             (ifArg "pathOf" pathOf) //
             (ifArg "relpath" relpath) //
-            (ifArg "abspath" abspath);
+            (ifArg "abspath" abspath) //
+            (ifArg "html" html);
           relpath =
             genesix-lib.mkRelPath { inherit pathOf; from = res.outpath;};
           abspath =
