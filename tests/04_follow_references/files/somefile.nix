@@ -2,5 +2,4 @@
 
 { content = "The other file is here: ${abspath ./someotherfile.nix}";
   outpath = [ "foo" "bar" ];
-  dependencies = [ ./someotherfile.nix ];
 }

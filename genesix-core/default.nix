@@ -1,5 +1,25 @@
 { pkgs }:
 rec {
+  ifArg = imported: arg: val:
+    if builtins.hasAttr arg (builtins.functionArgs imported)
+    then { ${arg} = val; }
+    else {};
+  listFilesInDir = dir:
+    let
+      go = dir: dirName:
+        pkgs.lib.lists.concatLists
+        (
+          pkgs.lib.attrsets.mapAttrsToList
+            (path: ty:
+              if ty == "directory"
+              then
+                go "${dir}/${path}" "${dirName}${path}/"
+              else
+                [ "${dirName}${path}" ]
+            )
+            (builtins.readDir dir)
+        );
+    in go dir "";
 
   mkRelPath = {pathOf, from}: to:
     pkgs.lib.strings.concatStringsSep "/" (
@@ -7,20 +27,33 @@ rec {
     pathOf to));
   mkAbsPath = {pathOf}: to:
     pkgs.lib.strings.concatStringsSep "/" (pathOf to);
+  mkSrcPath = {root, from}:
+    let
+      root' = builtins.toString root;
+      from' = builtins.toString from;
+    in
+      if pkgs.lib.hasPrefix root' from'
+      then pkgs.lib.splitString "/" (pkgs.lib.removePrefix root' from')
+      else abort "file '${from'}' isn't in directory '${root'}'";
 
-  applyGenerator = {generators, pathOf}: file:
+  applyGenerator = {generators, pathOf, root}: file:
     let
       generator =
         pkgs.lib.lists.findFirst
           (gen: gen.accept file)
           (abort "could not find generator for file ${builtins.toString file}")
           generators;
-      res = generator.gen {inherit pathOf;} file;
+      res =
+        let
+          args =
+            {} //
+            (ifArg generator.gen "pathOf" pathOf) //
+            (ifArg generator.gen "root" root);
+        in generator.gen args file;
     in res;
 
   generateWith =
-      { rawFiles
-      , roots
+      { root
       , generators
       }:
     let
@@ -54,31 +87,24 @@ rec {
               if builtins.hasAttr key generatedsSet
               then generatedsSet.${key}.outpath
               else abort "no outpath found for file '${key}'";
-          apply = applyGenerator { inherit pathOf generators; };
-          loop = acc: nexts:
-            popList nexts acc (next: rest:
-              let
-                key = toKey next;
-              in
-              if acc ? key then loop acc rest
-              else
-                let
-                  res = apply next;
-                  deps =
-                    if res ? "dependencies"
-                    then res.dependencies
-                    else [];
-                in
-                  loop (acc // { ${key} = apply next;}) (rest ++ deps)
-                );
-        in loop {} roots;
+          apply = applyGenerator { inherit pathOf generators root; };
+
+        in pkgs.lib.lists.foldl (acc: next:
+            let
+              key = toKey next;
+
+            # XXX: it's important that the accumulator is on the right. Since
+            # // is right-biased, we use laziness to compute values only once.
+            in { ${key} = apply next; } // acc
+          ) {} (map (f: "${builtins.toString root}/${builtins.toString f}") (listFilesInDir root));
+
       generateds = builtins.attrValues generatedsSet;
     in
       pkgs.stdenv.mkDerivation
         { name = "genesix";
           src = pkgs.symlinkJoin
             { name = "genesix-symlinks";
-              paths = map createBranch (rawFiles ++ generateds);
+              paths = map createBranch generateds;
             };
           installPhase =
             ''
