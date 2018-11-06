@@ -17,3 +17,7 @@ for testdir in tests/*; do
     diff -r $out "tests/$test/golden"
     echo "Done."
 done
+
+echo -n "Building site..."
+nix-build -A site --no-out-link > /dev/null
+echo "Done."

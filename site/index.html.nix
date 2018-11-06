@@ -1,4 +1,2 @@
 {html}:
-{ content = "Hello, world!";
-  outpath = [ "index.html" ];
-}
+html.tags.h1 "Hello, world!"

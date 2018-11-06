@@ -34,19 +34,31 @@ rec {
         { inherit arg1 arg2 tagName; };
       in
     let
-        attrs = if builtins.isNull pretag.arg1 then {} else pretag.arg1;
+        attrs =
+          if builtins.isNull pretag.arg1 || (
+            builtins.isString pretag.arg1 && builtins.isNull pretag.arg2 )
+          then {}
+          else pretag.arg1;
+        content =
+          if builtins.isNull pretag.arg2 && !(builtins.isString pretag.arg1)
+          then null
+          else if builtins.isString pretag.arg1 then pretag.arg1
+          else pretag.arg2;
         tagname = pretag.tagname;
         renderedAttrs = renderHTMLAttributes attrs;
-    in if builtins.isNull pretag.arg2 then
+    in if builtins.isNull content then
         "<" + pretag.tagName + renderedAttrs + "/>" else
         "<" + pretag.tagName + renderedAttrs + ">" +
-          pretag.arg2 + "</" + pretag.tagName + ">";
+          content + "</" + pretag.tagName + ">";
 
   xmlTag = attrs:
     let
       renderedAttrs = renderHTMLAttributes attrs;
     in
       "<?xml${renderedAttrs}?>";
+
+  commentTag = text:
+      "<!--${text}-->";
 
   srcpath =
     genesix-lib.mkSrcPath { inherit root; from = file;};

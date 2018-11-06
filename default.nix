@@ -13,4 +13,4 @@ in
     (name: value:
       pkgs.callPackage (import (./tests + "/${name}")) {} )
     (builtins.readDir ./tests) //
-  { site = pkgs.callPackage ./site {}; }
+  { site = pkgs.genesix.generate { root = pkgs.lib.cleanSource ./site; }; }
