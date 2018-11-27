@@ -14,7 +14,7 @@ for testdir in tests/*; do
     echo "Done, '$test' created in '$out'."
     golden="tests/$test/golden"
     echo -n "Testing '$out' vs '$golden'... "
-    diff -r $out "tests/$test/golden"
+    diff --strip-trailing-cr -r $out "tests/$test/golden"
     echo "Done."
 done
 
