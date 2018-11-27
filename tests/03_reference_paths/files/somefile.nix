@@ -1,4 +1,4 @@
-{ pkgs, abspath }:
+{ pkgs, abspath, ... }:
 
 { content = "The other file is here: ${abspath ./someotherfile.nix}";
   outpath = [ "foo" "bar" ];

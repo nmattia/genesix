@@ -1,5 +1,5 @@
 # The HTML library
-{pkgs, genesix-lib, root, file, pathOf, relpath}:
+{pkgs, genesix-lib, root, file, relpath, srcpath}:
 rec {
 
   # All HTML tags
@@ -59,9 +59,6 @@ rec {
 
   commentTag = text:
       "<!--${text}-->";
-
-  srcpath =
-    genesix-lib.mkSrcPath { inherit root; from = file;};
 
   render = input:
     let

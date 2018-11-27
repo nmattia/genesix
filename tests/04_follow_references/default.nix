@@ -1,5 +1,5 @@
 { genesix, pkgs }:
   genesix.generate
     {
-      root = ./files;
+      root = pkgs.lib.cleanSource ./files;
     }

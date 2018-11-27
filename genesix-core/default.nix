@@ -1,5 +1,8 @@
 { pkgs }:
 rec {
+  toKey = path:
+    builtins.unsafeDiscardStringContext (
+    builtins.toString path);
   ifArg = imported: arg: val:
     if builtins.hasAttr arg (builtins.functionArgs imported)
     then { ${arg} = val; }
@@ -21,36 +24,52 @@ rec {
         );
     in go dir "";
 
-  mkRelPath = {pathOf, from}: to:
-    pkgs.lib.strings.concatStringsSep "/" (
-    pkgs.lib.lists.subtractLists from (
-    pathOf to));
-  mkAbsPath = {pathOf}: to:
-    pkgs.lib.strings.concatStringsSep "/" (pathOf to);
-  mkSrcPath = {root, from}:
+  # source: the original file, before the generator has been applied
+  # target: the resulting file, after the generator has been applied
+  # rel: from current target to other target
+  # abs: from the root to current target
+  # src: from the root to current source
+  # foo vs. foo': foo is a path, foo' is a list of components
+  # in all cases, the arguments (from, to) are the original (Nix) paths.
+  mkRelPath = {generated, from}: to:
     let
-      root' = builtins.toString root;
-      from' = builtins.toString from;
+      from_target' = generated.${toKey from}.outpath;
+      to_target' = generated.${toKey to}.outpath;
     in
-      if pkgs.lib.hasPrefix root' from'
-      then pkgs.lib.splitString "/" (pkgs.lib.removePrefix root' from')
-      else abort "file '${from'}' isn't in directory '${root'}'";
+      pkgs.lib.strings.concatStringsSep "/" (
+      pkgs.lib.lists.subtractLists
+        from_target'
+        to_target'
+      );
+  mkAbsPath = {generated}: to:
+    let
+      to_target' = generated.${toKey to}.outpath;
+    in
+      pkgs.lib.strings.concatStringsSep "/" to_target';
 
-  applyGenerator = {generators, pathOf, root}: file:
+  mkSrcPath = {root, file}:
+    let
+      file_source = toKey file;
+      root' = builtins.toString root;
+    in
+      if pkgs.lib.hasPrefix root' file_source
+      then pkgs.lib.splitString "/" (pkgs.lib.removePrefix root' file_source)
+      else abort "file '${file_source}' isn't in directory '${root'}'";
+
+  applyGenerator = {generators, generated, root}: file:
     let
       generator =
         pkgs.lib.lists.findFirst
           (gen: gen.accept file)
           (abort "could not find generator for file ${builtins.toString file}")
           generators;
-      res =
-        let
-          args =
-            {} //
-            (ifArg generator.gen "pathOf" pathOf) //
-            (ifArg generator.gen "root" root);
-        in generator.gen args file;
-    in res;
+      args =
+        { inherit generated root;
+          abspath = to: mkAbsPath { inherit generated; } to;
+          relpath = to: mkRelPath { inherit generated; from = file; } to;
+          srcpath = mkSrcPath { inherit root file; };
+        };
+    in generator.gen args file;
 
   generateWith =
       { root
@@ -72,22 +91,10 @@ rec {
             mkdir -p $out/$dir
             cp ${content} $out/${filename}
           '';
-      generatedsSet =
+      generated =
         let
-          toKey = path:
-            builtins.unsafeDiscardStringContext (
-            builtins.toString path);
-          popList = list: def: cont:
-            if pkgs.lib.lists.length list <= 0
-            then def
-            else cont (pkgs.lib.lists.head list) (pkgs.lib.lists.tail list);
-          pathOf = target:
-            let key = toKey target;
-            in
-              if builtins.hasAttr key generatedsSet
-              then generatedsSet.${key}.outpath
-              else abort "no outpath found for file '${key}'";
-          apply = applyGenerator { inherit pathOf generators root; };
+          apply = applyGenerator
+              { inherit generated generators root; };
 
         in pkgs.lib.lists.foldl (acc: next:
             let
@@ -98,13 +105,12 @@ rec {
             in { ${key} = apply next; } // acc
           ) {} (map (f: "${builtins.toString root}/${builtins.toString f}") (listFilesInDir root));
 
-      generateds = builtins.attrValues generatedsSet;
     in
       pkgs.stdenv.mkDerivation
         { name = "genesix";
           src = pkgs.symlinkJoin
             { name = "genesix-symlinks";
-              paths = map createBranch generateds;
+              paths = map createBranch (builtins.attrValues generated);
             };
           installPhase =
             ''
