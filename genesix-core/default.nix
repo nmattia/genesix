@@ -26,37 +26,33 @@ rec {
 
   # source: the original file, before the generator has been applied
   # target: the resulting file, after the generator has been applied
-  # rel: from current target to other target
-  # abs: from the root to current target
-  # src: from the root to current source
+  # rel: from a target to another target
+  # tgt: from the root to a target
+  # src: from the root to a source
   # foo vs. foo': foo is a path, foo' is a list of components
   # in all cases, the arguments (from, to) are the original (Nix) paths.
-  mkRelPath = {generated, from}: to:
+  mkRelPath = {generated}: from: to:
     let
       from_target' = generated.${toKey from}.outpath;
       to_target' = generated.${toKey to}.outpath;
     in
-      pkgs.lib.strings.concatStringsSep "/" (
       pkgs.lib.lists.subtractLists
         from_target'
-        to_target'
-      );
-  mkAbsPath = {generated}: to:
+        to_target';
+  mkTgtPath = {generated}: to:
     let
       to_target' = generated.${toKey to}.outpath;
-    in
-      pkgs.lib.strings.concatStringsSep "/" to_target';
-
-  mkSrcPath = {root, file}:
+    in to_target';
+  mkSrcPath = {root}: to:
     let
-      file_source = toKey file;
-      root' = builtins.toString root;
+      to_source = toKey to;
+      root' = builtins.toString root + "/";
     in
-      if pkgs.lib.hasPrefix root' file_source
-      then pkgs.lib.splitString "/" (pkgs.lib.removePrefix root' file_source)
-      else abort "file '${file_source}' isn't in directory '${root'}'";
+      if pkgs.lib.hasPrefix root' to_source
+      then pkgs.lib.splitString "/" (pkgs.lib.removePrefix root' to_source)
+      else abort "file '${to_source}' isn't in directory '${root'}'";
 
-  applyGenerator = {generators, generated, root}: file:
+  applyGenerator = {generators, generated, root, files}: file:
     let
       generator =
         pkgs.lib.lists.findFirst
@@ -64,10 +60,13 @@ rec {
           (abort "could not find generator for file ${builtins.toString file}")
           generators;
       args =
-        { inherit generated root;
-          abspath = to: mkAbsPath { inherit generated; } to;
-          relpath = to: mkRelPath { inherit generated; from = file; } to;
-          srcpath = mkSrcPath { inherit root file; };
+        rec { inherit generated root files file;
+          relpath = to: pkgs.lib.concatStringsSep "/" (relpath' file to);
+          relpath' = from: to: mkRelPath { inherit generated;} from to;
+          srcpath = pkgs.lib.concatStringsSep "/" (srcpath' file);
+          srcpath' = to: mkSrcPath { inherit root; } to;
+          tgtpath = to: pkgs.lib.concatStringsSep "/" (tgtpath' to);
+          tgtpath' = to: mkTgtPath { inherit generated; } to;
         };
     in generator.gen args file;
 
@@ -93,8 +92,9 @@ rec {
           '';
       generated =
         let
+          files = listFilesInDir root;
           apply = applyGenerator
-              { inherit generated generators root; };
+              { inherit generated generators root files; };
 
         in pkgs.lib.lists.foldl (acc: next:
             let
@@ -103,7 +103,7 @@ rec {
             # XXX: it's important that the accumulator is on the right. Since
             # // is right-biased, we use laziness to compute values only once.
             in { ${key} = apply next; } // acc
-          ) {} (map (f: "${builtins.toString root}/${builtins.toString f}") (listFilesInDir root));
+          ) {} (map (f: "${builtins.toString root}/${builtins.toString f}") files);
 
     in
       pkgs.stdenv.mkDerivation

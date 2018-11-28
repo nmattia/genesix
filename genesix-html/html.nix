@@ -1,5 +1,5 @@
 # The HTML library
-{pkgs, genesix-lib, root, file, relpath, srcpath}:
+{pkgs, genesix-lib, root, file, relpath, srcpath'}:
 rec {
 
   # All HTML tags
@@ -70,8 +70,9 @@ rec {
       { content = str;
         outpath =
           let
-            last = pkgs.lib.last srcpath;
+            srcpathThis' = srcpath' file;
+            last = pkgs.lib.last srcpathThis';
             last' = pkgs.lib.removeSuffix ".nix" last;
-          in  pkgs.lib.init srcpath ++ [ last' ];
+          in  pkgs.lib.init srcpathThis' ++ [ last' ];
       };
 }

@@ -10,7 +10,7 @@ set -euo pipefail
 for testdir in tests/*; do
     test=$(basename $testdir)
     echo -n "Building $test... "
-    out=$(nix-build -A $test --no-out-link)
+    out=$(nix-build -A $test --no-out-link "$@")
     echo "Done, '$test' created in '$out'."
     golden="tests/$test/golden"
     echo -n "Testing '$out' vs '$golden'... "
@@ -19,5 +19,5 @@ for testdir in tests/*; do
 done
 
 echo -n "Building site..."
-nix-build -A site --no-out-link > /dev/null
+nix-build -A site --no-out-link "$@" > /dev/null
 echo "Done."

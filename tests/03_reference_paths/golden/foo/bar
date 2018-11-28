@@ -1,1 +1,10 @@
-The other file is here: foo/baz
+tgtpath ./someotherfile.nix: foo/baz
+tgtpath' ./someotherfile.nix: foo baz
+
+relpath ./someotherfile.nix: baz
+relpath' ./somefile.nix ./someotherfile.nix: baz
+
+srcpath' ./somefile.nix: somefile.nix
+srcpath: somefile.nix
+
+files: somefile.nix someotherfile.nix
