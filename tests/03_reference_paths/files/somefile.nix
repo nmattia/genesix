@@ -6,6 +6,7 @@
 , tgtpath
 , tgtpath'
 , files
+, file
 , ... }:
 
 { content =
@@ -17,9 +18,9 @@
       relpath' ./somefile.nix ./someotherfile.nix: ${builtins.toString (relpath' ./somefile.nix ./someotherfile.nix)}
 
       srcpath' ./somefile.nix: ${builtins.toString (srcpath' ./somefile.nix)}
-      srcpath: ${srcpath}
+      srcpath ./somefile.nix: ${srcpath file}
 
-      files: ${builtins.toString files}
+      builtins.map srcpath files: ${builtins.toString (builtins.map srcpath files)}
     '';
   outpath = [ "foo" "bar" ];
 }
