@@ -7,22 +7,28 @@ rec {
     if builtins.hasAttr arg (builtins.functionArgs imported)
     then { ${arg} = val; }
     else {};
+
+  # NOTE:
+  # this returns a list of paths, not store paths, e.g.:
+  #   /home/foo/...
+  #   /home/bar/baz.quux
+  #
   listFilesInDir = dir:
     let
-      go = dir: dirName:
+      go = dir:
         pkgs.lib.lists.concatLists
         (
           pkgs.lib.attrsets.mapAttrsToList
             (path: ty:
               if ty == "directory"
               then
-                go "${dir}/${path}" "${dirName}${path}/"
+                go (dir + "/${path}")
               else
-                [ "${dirName}${path}" ]
+                [ (dir + "/${path}") ]
             )
             (builtins.readDir dir)
         );
-    in go dir "";
+    in go dir;
 
   # source: the original file, before the generator has been applied
   # target: the resulting file, after the generator has been applied
@@ -63,7 +69,7 @@ rec {
         rec { inherit generated root files file;
           relpath = to: pkgs.lib.concatStringsSep "/" (relpath' file to);
           relpath' = from: to: mkRelPath { inherit generated;} from to;
-          srcpath = pkgs.lib.concatStringsSep "/" (srcpath' file);
+          srcpath = to: pkgs.lib.concatStringsSep "/" (srcpath' to);
           srcpath' = to: mkSrcPath { inherit root; } to;
           tgtpath = to: pkgs.lib.concatStringsSep "/" (tgtpath' to);
           tgtpath' = to: mkTgtPath { inherit generated; } to;
@@ -103,7 +109,7 @@ rec {
             # XXX: it's important that the accumulator is on the right. Since
             # // is right-biased, we use laziness to compute values only once.
             in { ${key} = apply next; } // acc
-          ) {} (map (f: "${builtins.toString root}/${builtins.toString f}") files);
+          ) {} files ;
 
     in
       pkgs.stdenv.mkDerivation

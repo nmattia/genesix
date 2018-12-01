@@ -5,6 +5,6 @@ relpath ./someotherfile.nix: baz
 relpath' ./somefile.nix ./someotherfile.nix: baz
 
 srcpath' ./somefile.nix: somefile.nix
-srcpath: somefile.nix
+srcpath ./somefile.nix: somefile.nix
 
-files: somefile.nix someotherfile.nix
+builtins.map srcpath files: somefile.nix someotherfile.nix
