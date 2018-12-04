@@ -1,4 +1,4 @@
-{ genesix, pkgs }:
+{ genesix, lib }:
   genesix.generate
     {
       root = ./files;

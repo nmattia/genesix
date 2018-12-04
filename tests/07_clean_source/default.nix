@@ -1,3 +1,3 @@
-{ genesix, pkgs }:
+{ genesix, lib }:
   genesix.generate
-    { root = pkgs.lib.cleanSource ./files; }
+    { root = lib.cleanSource ./files; }
