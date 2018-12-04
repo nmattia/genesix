@@ -3,11 +3,6 @@ rec {
   toKey = path:
     builtins.unsafeDiscardStringContext (
     builtins.toString path);
-  ifArg = imported: arg: val:
-    if builtins.hasAttr arg (builtins.functionArgs imported)
-    then { ${arg} = val; }
-    else {};
-
   # NOTE:
   # this returns a list of paths, not store paths, e.g.:
   #   /home/foo/...
@@ -78,8 +73,7 @@ rec {
 
   generateWith =
       { root
-      , generators
-      }:
+      }: generators:
     let
       createBranch = file:
         let
